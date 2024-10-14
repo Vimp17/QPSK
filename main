@@ -93,12 +93,13 @@ for snr_db in SNR_db_range:
     BERTEOR.append(1 - (1 - 2 * qfunc(np.sqrt(3 * y / (q - 1))))**2)
     #print(f"SNR = {snr_db} dB, BER = {ber}, BERTEOR = {BERTEOR}")
 
-# Построение графика BER vs SNR
 plt.figure()
-plt.plot(SNR_db_range, BER, marker='o')
-plt.plot(SNR_db_range, BERTEOR, marker='o')
+plt.plot(SNR_db_range, BER, marker='o', label='Simulation BER')
+plt.plot(SNR_db_range, BERTEOR, marker='s', label='Theoretical BER', linestyle='--')
 plt.xlabel('SNR (dB)')
 plt.ylabel('Bit Error Rate (BER)')
 plt.title('BER vs SNR for QPSK')
 plt.grid(True)
+plt.legend()
+plt.yscale('log')  # Логарифмическая шкала для BER
 plt.show()
