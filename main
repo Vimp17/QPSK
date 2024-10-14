@@ -1,0 +1,104 @@
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy.stats import norm
+
+def qfunc(x):
+    return norm.sf(x)  # Функция q-функции (1 - CDF нормального распределения)
+
+class QPSKModulator:
+    def __init__(self):
+        # Определение картирования символов на QPSK
+        self.symbol_map = {
+            (0, 0): 1 + 1j,   # 00 -> 1 + j
+            (0, 1): -1 + 1j,  # 01 -> -1 + j
+            (1, 0): 1 - 1j,   # 10 -> 1 - j
+            (1, 1): -1 - 1j   # 11 -> -1 - j
+        }
+        self.inverse_symbol_map = {v: k for k, v in self.symbol_map.items()}
+
+    def modulate(self, bits):
+        """
+        Выполняет модуляцию бит по схеме QPSK.
+        
+        :param bits: Входной битовый массив (должен быть кратен 2)
+        :return: Массив комплексных символов QPSK
+        """
+        if len(bits) % 2 != 0:
+            raise ValueError("Количество бит должно быть кратно 2 для QPSK модуляции")
+
+        symbols = []
+        for i in range(0, len(bits), 2):
+            bit_pair = (bits[i], bits[i+1])
+            symbols.append(self.symbol_map[bit_pair])
+
+        return np.array(symbols)
+
+    def demodulate(self, symbols):
+        """
+        Выполняет демодуляцию символов QPSK.
+        
+        :param symbols: Входной массив комплексных символов QPSK
+        :return: Массив демодулированных бит
+        """
+        bits = []
+        for symbol in symbols:
+            # Находим ближайший символ
+            closest_symbol = min(self.symbol_map.values(), key=lambda x: abs(x - symbol))
+            bits.extend(self.inverse_symbol_map[closest_symbol])
+
+        return np.array(bits)
+
+    def add_awgn(self, symbols, snr_db):
+        """
+        Добавляет аддитивный белый гауссовский шум (AWGN) к символам.
+        
+        :param symbols: Входной массив комплексных символов
+        :param snr_db: Отношение сигнал/шум (SNR) в децибелах
+        :return: Символы с добавленным шумом
+        """
+        snr_linear = 10**(snr_db / 10)
+        symbol_power = np.mean(np.abs(symbols)**2)
+        noise_power = symbol_power / snr_linear
+        noise = np.sqrt(noise_power / 2) * (np.random.randn(len(symbols)) + 1j * np.random.randn(len(symbols)))
+
+        return symbols + noise
+
+
+modulator = QPSKModulator()
+SNR_db_range = range(-1, 15, 2)  # Диапазон значений SNR (от -5 до 20 dB)
+BER = []  # Массив для хранения количества ошибок моделирования
+BERTEOR = [] # Массив для хранения количества ошибок теоретический
+for snr_db in SNR_db_range:
+    bit_errors_total = 0
+    total_bits = 0
+    y = 10**(snr_db / 10)
+    q = 4
+    for _ in range(10000):  
+        bits = np.random.randint(0, 2, size=20) # Случайное сообщение
+
+        symbols = modulator.modulate(bits) # Модуляция сообщения
+
+        noisy_symbols = modulator.add_awgn(symbols, snr_db=snr_db) # Добавление шума (в зависимости от SNR)
+
+        demodulated_bits = modulator.demodulate(noisy_symbols) #Демодуляция 
+
+        # Подсчёт количества ошибок
+        bit_errors = np.sum(bits != demodulated_bits[:len(bits)])
+        bit_errors_total += bit_errors
+        total_bits += len(bits)
+
+    # Расчёт битовой ошибки (BER)
+    ber = bit_errors_total / total_bits
+    BER.append(ber)
+    BERTEOR.append(1 - (1 - 2 * qfunc(np.sqrt(3 * y / (q - 1))))**2)
+    #print(f"SNR = {snr_db} dB, BER = {ber}, BERTEOR = {BERTEOR}")
+
+# Построение графика BER vs SNR
+plt.figure()
+plt.plot(SNR_db_range, BER, marker='o')
+plt.plot(SNR_db_range, BERTEOR, marker='o')
+plt.xlabel('SNR (dB)')
+plt.ylabel('Bit Error Rate (BER)')
+plt.title('BER vs SNR for QPSK')
+plt.grid(True)
+plt.show()
